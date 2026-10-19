@@ -1,0 +1,21 @@
+RustSBI-QEMU firmware
+Copyright (c) 2021-2023 RustSBI Team
+License: Mulan PSL v2; see the accompanying LICENSE file.
+
+Upstream: https://github.com/rustsbi/rustsbi-qemu
+Release tag: Unreleased
+Release target commit: 31c93d9abfc83a3ac5e50012589002000c3ff42a
+Download: https://github.com/rustsbi/rustsbi-qemu/releases/download/Unreleased/rustsbi-qemu-release.zip
+Archive entry: target/riscv64imac-unknown-none-elf/release/rustsbi-qemu.bin
+Bundled binary SHA-256: 8b2052b85072a185d449c71c44dd49d1b510df8a5248f8fc0716cc4f670122aa
+The release tag may move; the bundled bytes and SHA-256 identify this copy.
+
+Observed boot banner:
+RustSBI version 0.4.0-alpha.1, adapting to RISC-V SBI v2.0.0
+RustSBI-QEMU Version 0.2.0-alpha.3
+
+This upstream build recognizes QEMU's serial@10000000 device-tree node.
+It was tested with the default device tree produced by QEMU 11.0.1.
+
+This firmware runs in M-mode and starts our app directly in S-mode at
+0x80200000. No operating-system kernel is built or loaded for this demo.

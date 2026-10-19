@@ -1,46 +1,60 @@
-# 专业阶段 - rCore-Tutorial
+# Bare Metal Hello World
 
-基于 [LearningOS 2026s rCore 课程模板](https://github.com/LearningOS/2026s-oscamp-professional-2026s-rcore-rCore-Tutorial-Code) 整理，由 [LearningOS](https://github.com/LearningOS) 统一分配学员仓库、自动评测并同步 OpenCamp。
+一个直接由 RustSBI 启动的 RISC-V 裸机应用。应用在 S 态运行，自行设置栈，并通过 SBI 接口输出 `Hello, world!` 和关机。
 
-**五项实验：每项 100 分 · 总分：500 分**
+启动链：
 
-## 开始实验
+```text
+QEMU virt → RustSBI（M 态）→ app @ 0x80200000（S 态）
+                            → 设置 sp → rust_main → 输出 → 关机
+```
 
-1. 加入 [OpenCamp 秋冬季训练营](https://opencamp.cn/os2edu/camp/2026fall)，并绑定自己的 GitHub 账号。
-2. 点击[领取作业仓库](https://github.com/LearningOS/2026a-enroll/issues/new?template=rcore.yml)，点击 **Create** 提交申请；等待机器人回复，然后接受仓库邀请。
-3. 克隆分配的作业仓库，切换章节分支，完成实验代码和报告。
-4. push 到 `ch3`、`ch4`、`ch5`、`ch6` 或 `ch8`，在 Actions 查看评测；通过后自动上传累计成绩。
+## 编译与运行
 
-完整操作：[学员指南](docs/STUDENT_GUIDE.md)。
+需要 Rustup、Make、支持 RISC-V 的 QEMU 和 `cargo-binutils`。`rust-toolchain.toml` 指定 Rust 工具链、裸机目标和 LLVM 工具组件。
 
-## 分支与实验报告
+在仓库根目录执行：
 
-| 分支 | 内容 | 分值 | 必须提交的报告 |
-| --- | --- | ---: | --- |
-| `main` | 课程入口与操作指南 | — | — |
-| `ch1` | 应用程序与执行环境 | — | — |
-| `ch2` | 批处理系统 | — | — |
-| `ch3` | 多道程序与分时多任务 | 100 | `lab1` |
-| `ch4` | 地址空间 | 100 | `lab1`、`lab2` |
-| `ch5` | 进程管理 | 100 | `lab1` 至 `lab3` |
-| `ch6` | 文件系统与 I/O | 100 | `lab1` 至 `lab4` |
-| `ch7` | 进程间通信 | — | — |
-| `ch8` | 并发与同步 | 100 | `lab1` 至 `lab5` |
+```sh
+make run
+```
 
-报告放在 `reports/`，文件名为 `lab1.md` 或 `lab1.pdf` 等。请提交真实实验报告；后续章节仍需保留此前报告。
+`run` 会编译应用、生成裸二进制，再启动 QEMU。RustSBI 的启动信息后会出现 `Hello, world!`，随后 QEMU 正常退出。
 
-## 评分与同步
+其他入口：
 
-push 到 `ch3`、`ch4`、`ch5`、`ch6`、`ch8` 自动触发对应章节评测。官方测试全部通过、实验报告齐全且检查器成功退出，才记该章 100 分。重复通过不会重复加分，已通过章节的成绩会保留。
+- `make build`：只编译，生成 `target/riscv64gc-unknown-none-elf/release/bare-metal-hello.bin`。
+- `make disasm`：编译并显示应用的反汇编。
+- `make clean`：清理当前应用的构建产物。
 
-Actions 先执行 **Test chapter and reports**，通过后执行 **Save progress and upload score**。上传日志出现 `OpenCamp accepted the score (result=1).` 表示 OpenCamp 接口接受了成绩；再到学员成绩页面核对显示。
+修改 `src/linker.ld` 后，先执行 `make clean`，再执行 `make run`，确保重新链接。
 
-通过记录保存在学员作业仓库 `gh-pages` 分支的成绩文件中。
+## 启动方式
 
-模板保留待完成的实验代码，直接运行时出现测试失败属于预期结果。`main`、`ch1`、`ch2`、`ch7` 不计分。
+`make run` 使用下面的命令直接加载应用：
 
-## 学员指南
+```sh
+qemu-system-riscv64 \
+    -machine virt \
+    -nographic \
+    -smp 1 \
+    -bios bootloader/rustsbi-qemu.bin \
+    -device loader,file=target/riscv64gc-unknown-none-elf/release/bare-metal-hello.bin,addr=0x80200000
+```
 
-- [学员指南](docs/STUDENT_GUIDE.md)
+`-machine virt` 选择虚拟开发板，`-nographic` 将串口输出放到终端，`-smp 1` 使用一个核。`-bios` 加载 RustSBI；`-device loader` 把应用二进制放到 `0x80200000`，由 RustSBI 跳转到该入口。整个过程不加载操作系统内核。
 
-本仓库由 LearningOS 组织维护，保留上游源码历史，按 [GPL-3.0](LICENSE) 许可分发。
+## 代码结构
+
+| 文件 | 作用 |
+| --- | --- |
+| `src/entry.asm` | 设置 `sp`，调用 `rust_main` |
+| `src/linker.ld` | 从 `0x80200000` 开始依次放置代码段 `.text`、只读数据段 `.rodata`，随后预留 16 KiB、16 字节对齐的栈 |
+| `src/main.rs` | `no_std` / `no_main` 入口、Hello World 和最小 panic 处理 |
+| `src/sbi.rs` | 通过 `ecall` 调用 SBI 字符输出和 System Reset 关机接口 |
+| `.cargo/config` | 指定裸机目标，通过 `rustflags` 指定链接脚本 |
+| `bootloader/` | RustSBI 固件、来源记录和许可证 |
+
+运行时使用 `.text`、`.rodata` 和 `.stack`，分别存放代码、字符串等只读常量和栈。当前程序没有可写全局变量，因此不需要独立的 `.data`、`.bss` 或 BSS 清零。栈使用 `NOLOAD` 预留，只占运行时内存，不增加 `.bin` 文件大小。最小 panic 处理会输出固定错误提示，并请求失败关机；它不承担硬件异常的 Trap 处理。
+
+固件使用 RustSBI-QEMU `0.2.0-alpha.3`（RustSBI `0.4.0-alpha.1`），下载来源、版本和 SHA-256 见 [bootloader/NOTICE](bootloader/NOTICE)，固件许可证见 [bootloader/LICENSE](bootloader/LICENSE)。
