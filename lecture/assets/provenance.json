@@ -1,0 +1,10 @@
+{
+  "tool": "built-in image_gen",
+  "cover": "Use case: illustration-story. Asset type: a landscape illustration for a Chinese university operating-systems lecture, 3:2 aspect ratio. Make one elegant, bright editorial 3D clay illustration of a small standalone digital advertising screen beside a tiny circuit board and two removable program cards. The screen shows a simple warm coral abstract sun graphic, absolutely no text. White ceramic frame, muted teal accents, pale warm ivory studio background #F7F5EF, soft daylight, subtle shadows, much breathing room. All objects concentrated on the RIGHT two-thirds, left third mostly empty. Physical objects with tactile matte materials, academic and calm, no sci-fi neon, no dark backgrounds, no people, no logos, no watermark. This is an illustrative teaching metaphor, not a photograph of a specific device.",
+  "operator": "Use case: illustration-story. Asset type: a landscape illustration for a Chinese operating-systems lecture, 3:2 aspect ratio. Bright editorial 3D clay illustration: a single friendly adult advertising-screen operator in simple muted teal clothes, sitting on a stool near a freestanding advertising monitor, holding one removable program card, with a small stack of cards and a plain analog clock nearby. The operator looks patiently bored between replacing programs. Screen shows one coral abstract circular graphic, no readable text anywhere. Pale warm ivory background #F7F5EF, soft natural daylight, white and coral accents, matte tactile materials, clean generous negative space. Objects arranged mostly on right half, no dark panels, no brands, no watermark. A conceptual teaching story, not a real-person depiction.",
+  "files": {
+    "ad-screen.png": "cover",
+    "operator.png": "operator"
+  },
+  "use": "Conceptual lecture illustrations, not photographs of specific hardware or people."
+}

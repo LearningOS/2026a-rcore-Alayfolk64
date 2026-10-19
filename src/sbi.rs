@@ -20,8 +20,8 @@ pub fn put_str(text: &str) {
 }
 
 pub fn shutdown(failed: bool) -> ! {
-    // SBI System Reset: a7 = SRST, a6 = 0, a0 = shutdown,
-    // a1 = 0 (normal) or 1 (system failure). Success never returns.
+    // SBI 系统重置：a7 = SRST，a6 = 0，a0 = 0 表示关机，
+    // a1 = 0 表示正常关机，1 表示系统故障。调用成功后不会返回。
     unsafe {
         asm!(
             "ecall",

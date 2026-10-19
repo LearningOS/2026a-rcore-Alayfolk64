@@ -1,0 +1,262 @@
+{
+  "title": "一块广告屏里的操作系统",
+  "durationMinutes": 60,
+  "slides": [
+    {
+      "number": 1,
+      "title": "一块广告屏里的操作系统",
+      "minutes": 1,
+      "notes": "开场直接讲广告屏的故事：先让一台机器显示一句话，再面对换广告、自动换程序和公平分配播放机会的需求。今天用这个故事理解前三章的设计动机。全课 60 分钟，包含 4 分钟裸机演示和最后 5 分钟提问。插图是教学情境，不对应实际硬件型号。",
+      "sources": []
+    },
+    {
+      "number": 2,
+      "title": "今天的三次改造",
+      "minutes": 1,
+      "notes": "用需求组织课程，不要求同学此刻记住寄存器。第一章回答如何运行程序，第二章回答如何自动运行下一项并通过特权机制管理应用，第三章回答如何暂停、恢复并分配 CPU。广告屏只是帮助理解机制的情境，实际演示使用串口文本。",
+      "sources": [
+        "https://learningos.cn/rCore-Tutorial-Guide/chapter1/4mini-rt-baremetal.html",
+        "https://learningos.cn/rCore-Tutorial-Guide/chapter2/3batch-system.html",
+        "https://learningos.cn/rCore-Tutorial-Guide/chapter3/4time-sharing-system.html"
+      ]
+    },
+    {
+      "number": 3,
+      "title": "第一位客户：显示一句话",
+      "minutes": 1,
+      "notes": "先把目标压到最小：这就是一个应用，暂时没有操作系统。屏幕用 QEMU 串口代替。只要程序放到约定的地址、有合法栈，并能调用固件的输出服务，就可以运行。下一页追踪是谁把控制权交给它。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/c32aabf6a6facdf3998b7799ac10818ff713e23a/src/main.rs"
+      ]
+    },
+    {
+      "number": 4,
+      "title": "裸机应用的启动顺序",
+      "minutes": 2,
+      "notes": "QEMU virt 提供虚拟硬件。复位引导代码将控制权交给位于 0x80000000 的 RustSBI。这里采用的固件在初始化后进入 S 态的 0x80200000，执行我们的 _start。强调：这个地址来自本次平台和固件约定，不是任意 RISC-V 机器的通用入口。当前应用直接运行在 S 态，尚无 U 态应用与 OS 的分层。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/c32aabf6a6facdf3998b7799ac10818ff713e23a/Makefile",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/c32aabf6a6facdf3998b7799ac10818ff713e23a/bootloader/NOTICE",
+        "https://learningos.cn/rCore-Tutorial-Guide/chapter1/4mini-rt-baremetal.html"
+      ]
+    },
+    {
+      "number": 5,
+      "title": "编译、转换、加载",
+      "minutes": 2,
+      "notes": "第一条命令编译并链接，生成 ELF，其中有代码、只读数据和描述文件的元信息。objcopy 将需要加载的内容转成裸二进制，--strip-all 去掉符号及调试信息，-O binary 选择裸二进制。页上的 app.elf 和 app.bin 是便于讲解的文件名，仓库实际路径由 APP_ELF 与 APP_BIN 指定。之后 QEMU loader 将 .bin 放到 0x80200000。不要把 ELF 头当作第一条指令。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/c32aabf6a6facdf3998b7799ac10818ff713e23a/Makefile"
+      ]
+    },
+    {
+      "number": 6,
+      "title": "进入 Rust 之前，先设置栈",
+      "minutes": 3,
+      "notes": "在 0x80200000 执行的第一段是汇编入口。la 将链接脚本中的 boot_stack_top 地址放入 sp，call 再调用 Rust 入口。Rust 函数可能保存寄存器、分配局部变量，所以栈必须先有效。RISC-V 常用栈向低地址增长，此处栈顶按 16 字节对齐。ENTRY(_start) 记录 ELF 入口，.text.entry 排在最前才保证裸二进制开头是入口代码。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/c32aabf6a6facdf3998b7799ac10818ff713e23a/src/entry.asm",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/c32aabf6a6facdf3998b7799ac10818ff713e23a/src/linker.ld"
+      ]
+    },
+    {
+      "number": 7,
+      "title": "最小应用的内存布局",
+      "minutes": 2,
+      "notes": "按从低地址到高地址读表。代码在 .text，Hello 字符串在 .rodata，随后对齐并预留 16 KiB 栈。此演示没有需要清零的可写全局变量，因此没有加入 BSS 清零。NOLOAD 让栈只占运行时地址空间，不成为末尾文件内容。若学生问能否删除，回答可以运行，但当前链接器会增大裸二进制。不要把这种最小布局推广到有静态变量或更多库的程序。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/c32aabf6a6facdf3998b7799ac10818ff713e23a/src/linker.ld",
+        "https://lld.llvm.org/ELF/linker_script.html#output-section-type"
+      ]
+    },
+    {
+      "number": 8,
+      "title": "输出服务一次接收一个字符",
+      "minutes": 3,
+      "notes": "展示最小输出路径：put_str 对字符串逐字节循环，console_putchar 将字符放入 a0，以 a7=1 发起 legacy SBI Console Putchar。ecall 从 S 态进入 M 态的 RustSBI，固件操作串口，再返回应用继续下一个字节。这里演示 ASCII Hello World。当前 bare-metal-hello 分支的旧固件对非 ASCII 有已知限制，因此不在这次演示里扩展中文输出。inline asm 同时声明寄存器输入输出约束；屏幕上的三行是寄存器含义的简写，不是完整 Rust 源码。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/c32aabf6a6facdf3998b7799ac10818ff713e23a/src/sbi.rs"
+      ]
+    },
+    {
+      "number": 9,
+      "title": "关机也是一次服务调用",
+      "minutes": 1,
+      "notes": "本程序使用 SBI System Reset 扩展，不使用旧版编号 8 的关机接口。a7 的 0x53525354 是 SRST，a6=0 选择 system_reset，a0=0 表示 shutdown，a1=0 表示正常结束，a1=1 表示系统故障。成功关机不会返回。后面的无限循环只是防止接口失败返回后 Rust 的永不返回函数落空，主流程应直接让 QEMU 正常退出。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/c32aabf6a6facdf3998b7799ac10818ff713e23a/src/sbi.rs"
+      ]
+    },
+    {
+      "number": 10,
+      "title": "现场演示：裸机 Hello World",
+      "minutes": 4,
+      "notes": "在 bare-metal-hello 分支的仓库根目录执行 make run，观察固件信息、Hello World 和退出码。指向 src/main.rs、entry.asm、linker.ld、sbi.rs 四个文件即可，不逐行展开 Makefile。no_std 去除对标准库的依赖，no_main 由自定义入口接管启动，panic_handler 负责最小错误处理。当前 bare-metal 分支固件为 RustSBI 0.4.0-alpha.1，ch1 新模板固件为 0.4.1，两者均已在本机验证。分支切换会改变被跟踪的固件文件；演示前确认仓库状态。预期输出 Hello, world! 后正常退出。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/c32aabf6a6facdf3998b7799ac10818ff713e23a/src/main.rs",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/c32aabf6a6facdf3998b7799ac10818ff713e23a/Makefile",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/8f1dbd3ba6895dafb145d938d965ba7cac2ccc82/bootloader/rustsbi-qemu.toml"
+      ]
+    },
+    {
+      "number": 11,
+      "title": "ch1：公共执行环境",
+      "minutes": 2,
+      "notes": "回到广告卡片。每次换广告，都带上同样的启动与设备访问代码，很容易想到把公共能力留在机器上。这是故事中的设计动机。严格对应源码，ch1 建立的是最小 S 态执行环境，业务与支持代码仍可一起链接，还没有完整的独立应用加载和系统调用隔离。RustSBI 始终是更底层的 M 态固件，不把新抽出的公共代码也叫作 RustSBI。应用与内核的明确分离接着由 ch2 完成。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/8f1dbd3ba6895dafb145d938d965ba7cac2ccc82/os/src/main.rs",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/8f1dbd3ba6895dafb145d938d965ba7cac2ccc82/os/src/console.rs",
+        "https://learningos.cn/rCore-Tutorial-Guide/chapter1/4mini-rt-baremetal.html"
+      ]
+    },
+    {
+      "number": 12,
+      "title": "老板想省掉换卡的人力",
+      "minutes": 1,
+      "notes": "沿用讲师的设定：一个广告程序运行三小时，员工只在更换程序时忙十分钟，其他时间等下一次换卡。三小时和十分钟是业务故事的假设，不是系统性能数据。老板的要求很直接：把接下来要播的程序一次性交给机器，由机器接着运行。引出批处理。",
+      "sources": []
+    },
+    {
+      "number": 13,
+      "title": "ch2：一次装入，依次运行",
+      "minutes": 2,
+      "notes": "一批程序镜像可以一开始就作为内核的数据带入机器。运行完当前应用，再选择并加载下一项，所以无需每三小时有人现场操作。此时的关键仍是先后顺序：前一个不结束，后一个就没有运行机会。把完成后的自动换程序与稍后会讲的暂停后恢复区分开。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/cf94475a8afdcc3068a839bdfb0f0392491d4f5a/os/src/batch.rs",
+        "https://learningos.cn/rCore-Tutorial-Guide/chapter2/3batch-system.html"
+      ]
+    },
+    {
+      "number": 14,
+      "title": "批处理复用同一块运行区域",
+      "minutes": 3,
+      "notes": "ch2 的程序镜像都能保存在内核中，但应用的运行位置只有一块。load_app 清空 APP_BASE_ADDRESS 开始的区域，把下一项复制进去，执行 fence.i，再构造新的应用上下文。run_next_app 更新索引并进入 U 态。表中 A、B、C 是三个不同时间的状态，不表示三个程序同时占同一地址。fence.i 保证后续取指能看到先前写入的新指令。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/cf94475a8afdcc3068a839bdfb0f0392491d4f5a/os/src/batch.rs"
+      ]
+    },
+    {
+      "number": 15,
+      "title": "应用与管理者有不同权限",
+      "minutes": 3,
+      "notes": "现在把广告程序放在 U 态，管理它们的内核放在 S 态，固件继续在 M 态。应用要使用服务就通过系统调用进入内核。遇到非法指令等异常，处理器也会进入预设的 Trap 入口。特权级能限制某些操作，但不能把这一步说成完整的地址空间隔离；本课程用页表建立每个应用的地址空间是 ch4 的内容。也不能说所有故障都会自动被处理，未支持的 Trap 仍可能令教学内核 panic。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/cf94475a8afdcc3068a839bdfb0f0392491d4f5a/os/src/trap/context.rs",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/cf94475a8afdcc3068a839bdfb0f0392491d4f5a/os/src/trap/mod.rs",
+        "https://learningos.cn/rCore-Tutorial-Guide/chapter2/4trap-handling.html"
+      ]
+    },
+    {
+      "number": 16,
+      "title": "一次系统调用的往返",
+      "minutes": 3,
+      "notes": "先以 U 态应用请求写字符串为例。ecall 触发同步异常，硬件记录返回位置和原因，入口汇编再把通用寄存器保存到 TrapContext，并切换到内核所需的栈。trap_handler 识别 UserEnvCall，分派系统调用，返回值写回 a0。系统调用的 sepc 要加 4，跳过本次 ecall，随后恢复上下文并 sret 返回 U 态。定时器中断不应机械地把 sepc 加 4。此处区分 U 到 S 的系统调用与前面 S 到 M 的 SBI 调用。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/cf94475a8afdcc3068a839bdfb0f0392491d4f5a/os/src/trap/mod.rs",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/cf94475a8afdcc3068a839bdfb0f0392491d4f5a/os/src/trap/context.rs",
+        "https://learningos.cn/rCore-Tutorial-Guide/chapter2/4trap-handling.html"
+      ]
+    },
+    {
+      "number": 17,
+      "title": "自动运行，还不够公平",
+      "minutes": 2,
+      "notes": "老板解决了人工换卡，但客户有新的抱怨：前三个小时一直是同一条广告，后面的客户只能等，深夜时段也难卖。新的业务规则是每五分钟轮换一条，原来每位客户累计三小时的额度可以分散兑现。此时应用可能尚未完成，需要暂停后继续。先明确业务播放周期与 CPU 调度时间片是不同尺度；这里用广告轮播提出公平性和可恢复执行的需求。",
+      "sources": []
+    },
+    {
+      "number": 18,
+      "title": "ch3：多个程序同时驻留",
+      "minutes": 2,
+      "notes": "若切回 A 时仍想保留进度，就不能每次都用 B 覆盖 A 的运行区域。ch3 在物理内存中给各应用划定不同区域并分别准备栈和上下文。当前代码 APP_BASE_ADDRESS 为 0x80400000，APP_SIZE_LIMIT 为 0x20000，因此前三个区域按表中地址排列。多道程序意味着多个程序驻留；在这堂课的单核模型中，同一时刻仍只有一个任务占用 CPU。此处仍没有 ch4 的每进程页表隔离。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/3b9f7dd039dfee39b4e92cd80e5a52dece2b6f39/os/src/loader.rs",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/3b9f7dd039dfee39b4e92cd80e5a52dece2b6f39/os/src/config.rs"
+      ]
+    },
+    {
+      "number": 19,
+      "title": "切走以后，怎样接着跑",
+      "minutes": 3,
+      "notes": "暂停需要把现场保存下来，恢复时再装回。要区分两份上下文。TrapContext 保存 U 态被打断时的通用寄存器、sstatus 与 sepc。TaskContext 保存内核中 __switch 调用所需的 ra、sp、s0 到 s11，遵循函数调用约定。__switch 保存当前任务再恢复下一个任务；后续通过恢复 TrapContext 回到该应用的用户态位置。切换不是每次都从 main 重启。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/3b9f7dd039dfee39b4e92cd80e5a52dece2b6f39/os/src/task/context.rs",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/3b9f7dd039dfee39b4e92cd80e5a52dece2b6f39/os/src/task/switch.S",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/3b9f7dd039dfee39b4e92cd80e5a52dece2b6f39/os/src/trap/context.rs"
+      ]
+    },
+    {
+      "number": 20,
+      "title": "协作式：应用主动让出 CPU",
+      "minutes": 2,
+      "notes": "先从容易理解的协作式方案开始。应用发起 yield 系统调用，内核把当前任务从 Running 标为 Ready，再选择另一个 Ready 任务并切换。页上的函数来自当前 ch3 内核，实际应用通过用户库的系统调用封装进入这里。主动让出依赖应用配合，因此适合引出下一页的问题：如果应用永远不发起 yield，会怎样。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/3b9f7dd039dfee39b4e92cd80e5a52dece2b6f39/os/src/syscall/process.rs",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/3b9f7dd039dfee39b4e92cd80e5a52dece2b6f39/os/src/task/mod.rs"
+      ]
+    },
+    {
+      "number": 21,
+      "title": "如果应用一直不让出",
+      "minutes": 1,
+      "notes": "停顿十秒，让同学回答。只有协作式机制时，一个永不 yield 的循环可以一直占着 CPU。内核需要一种不依赖该应用主动请求的进入机会，也就是时钟中断。这里不要把正常业务循环等同于非法指令：它可以完全合法，但不合作。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/3b9f7dd039dfee39b4e92cd80e5a52dece2b6f39/os/src/trap/mod.rs"
+      ]
+    },
+    {
+      "number": 22,
+      "title": "抢占式：时钟到点，内核接管",
+      "minutes": 3,
+      "notes": "设置下一次时钟事件并允许 S 态定时器中断。应用运行中，时钟事件使处理器进入 Trap 入口，保存应用现场，内核重新设置下一次触发，然后调度其他 Ready 任务。ch3 的 TICKS_PER_SEC=100，按配置频率计算约 10 毫秒，实际时间依赖 CLOCK_FREQ 与平台时钟一致。强调两个时间尺度：广告每五分钟更换一次内容属于业务策略，CPU 调度通常按毫秒级交替执行。仅写一个每五分钟更新画面的循环，本身不能说明已经有多任务内核。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/3b9f7dd039dfee39b4e92cd80e5a52dece2b6f39/os/src/timer.rs",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/3b9f7dd039dfee39b4e92cd80e5a52dece2b6f39/os/src/trap/mod.rs"
+      ]
+    },
+    {
+      "number": 23,
+      "title": "轮转：挑选下一个 Ready 任务",
+      "minutes": 3,
+      "notes": "沿任务列表向后查找，走到末尾再回到开头，挑选第一个 Ready 的任务。当前任务被暂停后重新变为 Ready，下一个任务进入 Running；Exited 的任务跳过。页面假设 A、B、C 一直可运行，用六个时间片说明 A、B、C、A、B、C 的轮转。每一格是一个 CPU 时间片，不是广告业务的五分钟。轮转分配运行机会，不承诺每个任务获得相同业务进度。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/3b9f7dd039dfee39b4e92cd80e5a52dece2b6f39/os/src/task/mod.rs",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/3b9f7dd039dfee39b4e92cd80e5a52dece2b6f39/os/src/task/task.rs"
+      ]
+    },
+    {
+      "number": 24,
+      "title": "课后沿这几处源码继续读",
+      "minutes": 3,
+      "notes": "用三分钟收束到实际仓库。裸机分支只需看四个文件，ch1 重点看最小执行环境，ch2 从 run_next_app 和 trap_handler 接起来，ch3 从时钟中断到 suspend_current_and_run_next，再到 __switch。当前课程仓库的应用测试工程由课程流程提供，不假设 user 目录已经存在。课堂不在此临时完整搭建 ch2/ch3 的测试环境。请同学课后结合对应章节指南跑实验，跟踪一次控制流。",
+      "sources": [
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/c32aabf6a6facdf3998b7799ac10818ff713e23a/src/main.rs",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/cf94475a8afdcc3068a839bdfb0f0392491d4f5a/os/src/batch.rs",
+        "https://github.com/LearningOS/2026a-rcore-Alayfolk64/blob/3b9f7dd039dfee39b4e92cd80e5a52dece2b6f39/os/src/task/mod.rs"
+      ]
+    },
+    {
+      "number": 25,
+      "title": "每次改造，都回答一个问题",
+      "minutes": 2,
+      "notes": "让学生复述新增能力与需求的对应关系。第一章解决程序如何在无 OS 的环境运行。第二章管理一批应用，把完成或异常后的控制权交回内核，再选择下一项。第三章保存现场和分配运行时间，使未结束的程序也能交替推进。把故事中的节约换卡成本与系统里的控制权管理联系起来，避免只记住三个章节名。",
+      "sources": [
+        "https://learningos.cn/rCore-Tutorial-Guide/chapter1/4mini-rt-baremetal.html",
+        "https://learningos.cn/rCore-Tutorial-Guide/chapter2/3batch-system.html",
+        "https://learningos.cn/rCore-Tutorial-Guide/chapter3/4time-sharing-system.html"
+      ]
+    },
+    {
+      "number": 26,
+      "title": "回到这块广告屏",
+      "minutes": 5,
+      "notes": "最后五分钟提问。先让同学回答页面上的三个问题。参考答案：裸机时由我们自己和 RustSBI 提供基本执行环境；引入内核后由 S 态内核管理 U 态应用。拿回 CPU 的方式包括应用主动系统调用、异常以及允许的时钟中断。能继续执行是因为上下文和内存状态得到保存。可追加提问：把广告每五分钟轮换一次是否自动等于多任务？答案是否，需要有可独立保存和恢复的多个任务与调度机制。若没有提问，可请一位同学复述从 ecall 到返回用户态的路径。",
+      "sources": [
+        "https://learningos.cn/rCore-Tutorial-Guide/chapter1/4mini-rt-baremetal.html",
+        "https://learningos.cn/rCore-Tutorial-Guide/chapter2/4trap-handling.html",
+        "https://learningos.cn/rCore-Tutorial-Guide/chapter3/4time-sharing-system.html"
+      ]
+    }
+  ]
+}
