@@ -14,7 +14,7 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::config::MAX_APP_NUM;
+use crate::config::{MAX_APP_NUM, MAX_SYSCALL_NUM};
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
 use lazy_static::*;
@@ -45,6 +45,16 @@ pub struct TaskManagerInner {
     tasks: [TaskControlBlock; MAX_APP_NUM],
     /// id of current `Running` task
     current_task: usize,
+}
+
+
+lazy_static! {
+    /// Global variable: SYSCALL_COUNTER
+    pub static ref SYSCALL_COUNTER: 
+        UPSafeCell<[[usize; MAX_SYSCALL_NUM]; MAX_APP_NUM]> = 
+        unsafe {
+            UPSafeCell::new([[0; MAX_SYSCALL_NUM]; MAX_APP_NUM])
+        };
 }
 
 lazy_static! {
@@ -168,4 +178,20 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+/// Add the syscall count of the task
+pub fn add_current_syscall_count(syscall_id: usize) {
+    let inner = TASK_MANAGER.inner.exclusive_access();
+    let task_id = inner.current_task;
+    let mut counter = SYSCALL_COUNTER.exclusive_access();
+    counter[task_id][syscall_id] += 1;
+}
+
+/// Return the syscall count of the task
+pub fn current_syscall_count(syscall_id: usize) -> usize {
+    let inner = TASK_MANAGER.inner.exclusive_access();
+    let task_id = inner.current_task;
+    let counter = SYSCALL_COUNTER.exclusive_access();
+    counter[task_id][syscall_id]
 }

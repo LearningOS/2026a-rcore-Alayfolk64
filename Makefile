@@ -1,6 +1,7 @@
 CONTAINER_NAME ?= rcore-container-qemu8
 DOCKER_NAME ?= rcore-docker-qemu8
-.PHONY: docker build_docker attach_docker rebuild_docker fmt
+CHAPTER ?= $(patsubst ch%,%,$(shell git branch --show-current))
+.PHONY: docker build_docker attach_docker rebuild_docker fmt test
 
 docker:
 	if ! docker images --format "{{.Repository}}" | grep -q "^${DOCKER_NAME}$$"; then \
@@ -55,3 +56,6 @@ rebuild_docker:
 
 fmt:
 	cd os ; cargo fmt; cd ..
+
+test:
+	$(MAKE) -C ci-user test CHAPTER=$(CHAPTER)
