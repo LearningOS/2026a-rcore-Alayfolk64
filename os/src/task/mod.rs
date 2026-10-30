@@ -243,7 +243,7 @@ pub fn current_syscall_count(syscall_id: usize) -> usize {
 /// Map a area 
 pub fn mmap(start: usize, end: usize, perm: MapPermission) -> bool {
     let mut inner = TASK_MANAGER.inner.exclusive_access();
-    let task_id = current_task_id();
+    let task_id = inner.current_task;
     let task_control_block = &mut inner.tasks[task_id];
     if task_control_block.memory_set.check_vpnrange_overlap(start, end) {
         return false;
@@ -257,7 +257,7 @@ pub fn mmap(start: usize, end: usize, perm: MapPermission) -> bool {
 /// Unmap a area
 pub fn munmap(start: usize, end: usize) -> bool {
     let mut inner = TASK_MANAGER.inner.exclusive_access();
-    let task_id = current_task_id();
+    let task_id = inner.current_task;
     let task_control_block = &mut inner.tasks[task_id];
     if !task_control_block.memory_set.check_vpn_mapped(start, end) {
         return false;

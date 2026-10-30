@@ -2,8 +2,8 @@
 use crate::task::{change_program_brk, exit_current_and_run_next, suspend_current_and_run_next};
 use crate::timer::get_time_us;
 use crate::task::{current_user_token, current_syscall_count, mmap, munmap};
-use crate::mm::{translated_byte_buffer, MapPermission};
-use crate::config::PAGE_SIZE;
+use crate::mm::{MapPermission, PTEFlags, PageTable, VirtAddr, VirtPageNum, translated_byte_buffer};
+use crate::config::{PAGE_SIZE, PAGE_SIZE_BITS};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -31,17 +31,31 @@ pub fn sys_yield() -> isize {
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
-    let time_ms = get_time_us();
-    let sec = time_ms / 1_000_000;
-    let usec = time_ms % 1_000_000;
+    let time_us = get_time_us();
+    let sec = time_us / 1_000_000;
+    let usec = time_us % 1_000_000;
+
+    let size = core::mem::size_of::<usize>();
     let token = current_user_token();
-    let sec_ptr = translated_byte_buffer(token, ts as *const u8, core::mem::size_of::<usize>());
-    let usec_ptr = translated_byte_buffer(token, unsafe { (ts as *const u8).add(1) }, core::mem::size_of::<usize>());
-    let sec_ptr = sec_ptr[0][0] as *mut usize;
-    let usec_ptr = usec_ptr[0][0] as *mut usize;
+    let sec_ptr = ts as usize;
+    let usec_ptr = sec_ptr + size;
+
+    let sec_va: VirtAddr = sec_ptr.into();
+    let usec_va: VirtAddr = usec_ptr.into();
+
+    let sec_vpn: VirtPageNum = sec_va.floor();
+    let usec_vpn: VirtPageNum = usec_va.floor();
+
+    let pt = PageTable::from_token(token);
+    let sec_ppn = pt.translate(sec_vpn).unwrap().ppn();
+    let usec_ppn = pt.translate(usec_vpn).unwrap().ppn();
+
+    let sec_pa = ((sec_ppn.0 << PAGE_SIZE_BITS) | (sec_ptr & (PAGE_SIZE - 1))) as *mut usize;
+    let usec_pa = ((usec_ppn.0 << PAGE_SIZE_BITS) | (usec_ptr & (PAGE_SIZE - 1))) as *mut usize;
+
     unsafe {
-        *sec_ptr = sec;
-        *usec_ptr = usec;
+        *sec_pa = sec;
+        *usec_pa = usec;
     }
     0
 
@@ -54,14 +68,40 @@ pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
     match trace_request {
         0 => {
             let token = current_user_token();
+            let pt = PageTable::from_token(token);
+            let va: VirtAddr = id.into(); 
+            let vpn : VirtPageNum = va.floor();
+            let pte = match pt.translate(vpn) {
+                Some(pte) => pte,
+                None => return -1,
+            };
+            if !pte.is_valid() || !pte.flags().contains(PTEFlags::U) || !pte.flags().contains(PTEFlags::R) {
+                return -1;
+            }
             let result = translated_byte_buffer(token, id as *const u8, core::mem::size_of::<u8>());
-            let result = result[0][0];
-            result as isize
+            let ptr = result[0].as_ptr() as *const u8;
+            unsafe {
+                *ptr as isize
+            }
         },
         1 => {
             let token = current_user_token();
+            let pt = PageTable::from_token(token);
+            let va: VirtAddr = id.into(); 
+            let vpn : VirtPageNum = va.floor();
+            let pte = match pt.translate(vpn) {
+                Some(pte) => pte,
+                None => return -1,
+            };
+            if !pte.is_valid() || !pte.flags().contains(PTEFlags::U) || !pte.flags().contains(PTEFlags::W) {
+                return -1;
+            }
             let mut result = translated_byte_buffer(token, id as *const u8, core::mem::size_of::<u8>());
-            result[0][0] = data as u8;
+            
+            let ptr = result[0].as_mut_ptr() as *mut u8;
+            unsafe {
+                *ptr = data as u8;
+            }
             0
         },
         2 => {
@@ -106,6 +146,9 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
 // YOUR JOB: Implement munmap.
 pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!("kernel: sys_munmap!");
+    if start % PAGE_SIZE != 0 {
+        return -1;
+    }
     let end = start + len;
     if munmap(start, end) {
         return 0;

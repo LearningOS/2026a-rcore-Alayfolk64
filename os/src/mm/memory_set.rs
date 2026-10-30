@@ -265,10 +265,16 @@ impl MemorySet {
 
     /// check the VPNRange whether to have been mapped
     pub fn check_vpnrange_overlap(&mut self, start: usize, end: usize) -> bool {
-        let st_vpn: VirtPageNum = start.into();
-        let end_vpn: VirtPageNum = end.into();
-        for vpn in VPNRange::new(st_vpn, end_vpn) {
-            if let Some(_) = self.translate(vpn) {
+        let start_va: VirtAddr = start.into();
+        let end_va: VirtAddr = end.into();
+        let start_vpn: VirtPageNum = start_va.floor();
+        let end_vpn: VirtPageNum = end_va.ceil();
+        for vpn in VPNRange::new(start_vpn, end_vpn) {
+            let pte = match self.translate(vpn) {
+                Some(pte) => pte,
+                None => { continue }
+            };
+            if pte.is_valid() {
                 return true;
             }
         }
@@ -282,7 +288,11 @@ impl MemorySet {
         let start_vpn: VirtPageNum = start_va.floor();
         let end_vpn: VirtPageNum = end_va.ceil();
         for vpn in VPNRange::new(start_vpn, end_vpn) {
-            if let None = self.translate(vpn){
+            let pte = match self.translate(vpn) {
+                Some(pte) => pte,
+                None => { return false }
+            };
+            if !pte.is_valid() {
                 return false;
             }
         }
@@ -295,8 +305,7 @@ impl MemorySet {
         for area in &mut self.areas {
             let area_l = area.vpn_range.get_start();
             let area_r = area.vpn_range.get_end();
-            if (area_l <= start_vpn && start_vpn <= area_r)
-                || (area_l <= end_vpn && end_vpn <= area_r) {
+            if area_l < end_vpn && start_vpn < area_r {
                     let pt = &mut self.page_table;
                     let l = area_l.max(start_vpn);
                     let r = area_r.min(end_vpn);
