@@ -262,6 +262,50 @@ impl MemorySet {
             false
         }
     }
+
+    /// check the VPNRange whether to have been mapped
+    pub fn check_vpnrange_overlap(&mut self, start: usize, end: usize) -> bool {
+        let st_vpn: VirtPageNum = start.into();
+        let end_vpn: VirtPageNum = end.into();
+        for vpn in VPNRange::new(st_vpn, end_vpn) {
+            if let Some(_) = self.translate(vpn) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// Check the VirtPageNum whether have to been mapped
+    pub fn check_vpn_mapped(&self, start: usize, end: usize) -> bool {
+        let start_va: VirtAddr = start.into();
+        let end_va: VirtAddr = end.into();
+        let start_vpn: VirtPageNum = start_va.floor();
+        let end_vpn: VirtPageNum = end_va.ceil();
+        for vpn in VPNRange::new(start_vpn, end_vpn) {
+            if let None = self.translate(vpn){
+                return false;
+            }
+        }
+        true
+    }
+    /// Remove a framed area
+    pub fn remove_framed_area(&mut self, start_va: VirtAddr, end_va: VirtAddr) {
+        let start_vpn: VirtPageNum = start_va.floor();
+        let end_vpn: VirtPageNum = end_va.ceil();
+        for area in &mut self.areas {
+            let area_l = area.vpn_range.get_start();
+            let area_r = area.vpn_range.get_end();
+            if (area_l <= start_vpn && start_vpn <= area_r)
+                || (area_l <= end_vpn && end_vpn <= area_r) {
+                    let pt = &mut self.page_table;
+                    let l = area_l.max(start_vpn);
+                    let r = area_r.min(end_vpn);
+                    for vpn in VPNRange::new(l, r) {
+                        area.unmap_one(pt, vpn);
+                    }
+                }
+        }
+    }
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {

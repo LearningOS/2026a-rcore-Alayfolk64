@@ -15,8 +15,10 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::config::{MAX_SYSCALL_NUM, MAX_APP_NUM};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
+use crate::mm::{VirtAddr, MapPermission};
 use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
@@ -46,6 +48,21 @@ struct TaskManagerInner {
     tasks: Vec<TaskControlBlock>,
     /// id of current `Running` task
     current_task: usize,
+}
+
+/// The task's syscall counter 
+pub struct SyscallCounter {
+    counter: UPSafeCell<[[usize; MAX_SYSCALL_NUM]; MAX_APP_NUM]>,
+}
+
+lazy_static! {
+    /// Global syscall counter
+    pub static ref SYSCALL_COUNTER: SyscallCounter = 
+    SyscallCounter {
+        counter: unsafe {
+            UPSafeCell::new([[0; MAX_SYSCALL_NUM]; MAX_APP_NUM])
+        }
+    };
 }
 
 lazy_static! {
@@ -201,4 +218,52 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// Get current task id
+pub fn current_task_id() -> usize {
+    let inner = TASK_MANAGER.inner.exclusive_access();
+    inner.current_task
+}
+
+/// Add the current task syscall count
+pub fn add_current_syscall_count(syscall_id: usize) {
+    let task_id = current_task_id();
+    let mut counter = SYSCALL_COUNTER.counter.exclusive_access();
+    counter[task_id][syscall_id] += 1;
+}
+
+/// Return current task syscall count
+pub fn current_syscall_count(syscall_id: usize) -> usize {
+    let task_id = current_task_id();
+    let counter = SYSCALL_COUNTER.counter.exclusive_access();
+    counter[task_id][syscall_id]
+}   
+
+/// Map a area 
+pub fn mmap(start: usize, end: usize, perm: MapPermission) -> bool {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let task_id = current_task_id();
+    let task_control_block = &mut inner.tasks[task_id];
+    if task_control_block.memory_set.check_vpnrange_overlap(start, end) {
+        return false;
+    }
+    let start_va: VirtAddr = start.into();
+    let end_va: VirtAddr = end.into(); 
+    task_control_block.memory_set.insert_framed_area(start_va, end_va, perm);
+    true
+}
+
+/// Unmap a area
+pub fn munmap(start: usize, end: usize) -> bool {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let task_id = current_task_id();
+    let task_control_block = &mut inner.tasks[task_id];
+    if !task_control_block.memory_set.check_vpn_mapped(start, end) {
+        return false;
+    }
+    let start_va: VirtAddr = start.into();
+    let end_va: VirtAddr = end.into();
+    task_control_block.memory_set.remove_framed_area(start_va, end_va);
+    true
 }
